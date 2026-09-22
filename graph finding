@@ -1,0 +1,43 @@
+import numpy as np
+def y_perm(x,alpha,phi):
+    r=1/phi
+    a=r*(1-alpha); b=(1-x)-r+alpha*r+alpha*x; c=-alpha*x
+    if abs(a)<1e-15: return -c/b
+    disc=b*b-4*a*c
+    roots=[(-b+s*np.sqrt(disc))/(2*a) for s in (1,-1)]
+    ok=[z for z in roots if 0<=z<=1 and z<=phi*x+1e-12]
+    return min(ok) if len(ok)>1 else ok[0]
+def cascade(x0,alpha,phi,target,maxst=20):
+    ys=[];x=x0
+    for k in range(maxst):
+        y=y_perm(x,alpha,phi); ys.append(y); x=y
+        if y>=target: break
+    return ys
+R,T=8.314,298.15
+def energy(ys,phi,eta=0.7):
+    w=R*T*np.log(phi)/eta  # J/mol compressed
+    # permeate of stages 1..N-1 recompressed
+    mol=sum(1/y for y in ys[:-1])
+    return mol*w/0.004/3.6e6  # kWh per kg He
+if __name__=="__main__":
+    x0=0.005
+    for phi in [10,25,50,100]:
+        print("phi",phi,[round(y_perm(x0,a,phi)*100,2) for a in [10,30,100,300,1000,1e4]])
+    for a in [10,30,100,300,1000]:
+        ys=cascade(x0,a,50,0.99)
+        print("alpha",a,"stages",len(ys),[round(y*100,1) for y in ys],"kWh/kgHe",round(energy(ys,50),1))
+    for x0 in [0.003,0.005,0.01]:
+        ys=cascade(x0,1000,50,0.99); print("x0",x0,len(ys),[round(y*100,1) for y in ys],round(energy(ys,50),1))
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+plt.rcParams.update({'font.family':'serif','font.serif':['Times New Roman','Liberation Serif','DejaVu Serif'],'font.size':8})
+x0=0.005; al=np.logspace(0,4,200)
+fig,ax=plt.subplots(figsize=(3.35,2.35),dpi=300)
+for phi,ls in zip([10,25,50,100],['-','--','-.',':']):
+    ax.plot(al,[100*y_perm(x0,a,phi) for a in al],'k',ls=ls,lw=1,label=f'Pressure ratio {phi}')
+    ax.axhline(100*phi*x0,color='0.6',lw=0.5)
+ax.set_xscale('log'); ax.set_xlabel('Membrane selectivity for helium over methane (dimensionless)')
+ax.set_ylabel('Helium in permeate (mol %)'); ax.set_ylim(0,55); ax.set_xlim(1,1e4)
+ax.legend(frameon=False,fontsize=7,loc='upper left')
+fig.tight_layout(); fig.savefig('fig1.png')
