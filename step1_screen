@@ -1,0 +1,39 @@
+"""
+STEP 1 - Geometric screening of the CoRE MOF 2019 database for helium sieving.
+
+Uses the pore-limiting diameters (PLD) that the database authors computed with
+Zeo++, so no Zeo++ installation is needed.  Runs in a few seconds.
+
+Outputs:
+  screening_funnel.txt  - the counts that go into the paper ([N0], [N1], [N2], [M])
+  candidates.csv        - the MOFs passed on to step 2
+"""
+import pandas as pd
+from CoRE_MOF import get_properties
+
+KD = {"He": 2.60, "H2": 2.89, "CO2": 3.30, "N2": 3.64, "CH4": 3.80}   # kinetic diameters (A)
+
+df = get_properties("2019-ASR")
+df = df.loc[:, ~df.columns.str.startswith("Unnamed")]
+
+n0 = len(df)
+win = df[(df.PLD >= 2.7) & (df.PLD <= 3.5)]                      # helium-sized windows
+n1 = len(win)
+m_co2 = int((win.PLD >= KD["CO2"]).sum())                         # CO2 also passes
+clean = win[(win.DISORDER != "DISORDER") & win.Extension.isin(["clean", "clean_h"])]
+n2 = len(clean)                                                   # ordered, charge-neutral
+sweet = clean[(clean.PLD >= 3.0) & (clean.PLD < KD["CO2"])]       # blocks CO2, N2, CH4 with margin
+n3 = len(sweet)
+
+lines = [
+    f"[N0] Structures screened (CoRE MOF 2019 ASR, public):          {n0}",
+    f"[N1] Pore-limiting diameter 2.7-3.5 A (helium-sized windows):  {n1}",
+    f"[M]  ...of which PLD >= 3.3 A, so CO2 can also pass:           {m_co2}",
+    f"[N2] ...ordered and charge-neutral structures:                 {n2}",
+    f"[N3] ...with 3.0 <= PLD < 3.3 A (He passes; CO2, N2, CH4 blocked): {n3}",
+]
+open("screening_funnel.txt", "w").write("\n".join(lines) + "\n")
+print("\n".join(lines))
+
+sweet[["filename", "PLD", "LCD", "AV_VF", "All_Metals"]].to_csv("candidates.csv", index=False)
+print(f"\nSaved {n3} candidates to candidates.csv")
